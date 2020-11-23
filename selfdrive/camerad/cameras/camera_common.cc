@@ -159,7 +159,9 @@ bool CameraBuf::acquire() {
     assert(clSetKernelArg(krnl_debayer, 0, sizeof(cl_mem), &camrabuf_cl) == 0);
     assert(clSetKernelArg(krnl_debayer, 1, sizeof(cl_mem), &cur_rgb_buf->buf_cl) == 0);
 #ifdef QCOM2
-    assert(clSetKernelArg(krnl_debayer, 2, camera_state->debayer_cl_localMemSize, 0) == 0);
+    int magic_coeff = 20 - 9 * cur_frame_data.gain_frac / 4;
+    assert(clSetKernelArg(krnl_debayer, 2, sizeof(int), &magic_coeff) == 0);
+    assert(clSetKernelArg(krnl_debayer, 3, camera_state->debayer_cl_localMemSize, 0) == 0);
     assert(clEnqueueNDRangeKernel(q, krnl_debayer, 2, NULL,
                                   camera_state->debayer_cl_globalWorkSize, camera_state->debayer_cl_localWorkSize,
                                   0, 0, &debayer_event) == 0);

@@ -24,17 +24,17 @@ uint int_from_10(const uchar * source, uint start, uint offset) {
   return major + minor;
 }
 
-float to_normal(uint x) {  
+float to_normal(uint x, int m) {
   float pv = (float)(x);
   const float black_level = 42.0;
   pv = max(0.0, pv - black_level);
   pv /= (1024.0f - black_level);
-  pv = 20*pv / (1.0f + 20*pv); // reinhard
+  pv = m*pv / (1.0f + m*pv); // reinhard
   return pv;
 }
 
 __kernel void debayer10(const __global uchar * in,
-                        __global uchar * out,
+                        __global uchar * out, int magic,
                         __local float * cached
                        )
 {
@@ -54,7 +54,7 @@ __kernel void debayer10(const __global uchar * in,
   uint globalStart_10 = y_global * FRAME_STRIDE + (5 * (x_global / 4));
   uint offset_10 = x_global % 4;
   uint raw_val = int_from_10(in, globalStart_10, offset_10);
-  cached[localOffset] = to_normal(raw_val);
+  cached[localOffset] = to_normal(raw_val, magic);
 
   // edges
   if (x_global < 1 || x_global > RGB_WIDTH - 2 || y_global < 1 || y_global > RGB_WIDTH - 2) {
@@ -68,22 +68,22 @@ __kernel void debayer10(const __global uchar * in,
     if (x_local < 1) {
       localColOffset = x_local;
       globalColOffset = -1;
-      cached[(y_local + 1) * localRowLen + x_local] = to_normal(int_from_10(in, y_global * FRAME_STRIDE + (5 * ((x_global-1) / 4)), (offset_10 + 3) % 4));
+      cached[(y_local + 1) * localRowLen + x_local] = to_normal(int_from_10(in, y_global * FRAME_STRIDE + (5 * ((x_global-1) / 4)), (offset_10 + 3) % 4), magic);
     } else if (x_local >= get_local_size(0) - 1) {
       localColOffset = x_local + 2;
       globalColOffset = 1;
-      cached[localOffset + 1] = to_normal(int_from_10(in, y_global * FRAME_STRIDE + (5 * ((x_global+1) / 4)), (offset_10 + 1) % 4));
+      cached[localOffset + 1] = to_normal(int_from_10(in, y_global * FRAME_STRIDE + (5 * ((x_global+1) / 4)), (offset_10 + 1) % 4), magic);
     }
 
     if (y_local < 1) {
-      cached[y_local * localRowLen + x_local + 1] = to_normal(int_from_10(in, globalStart_10 - FRAME_STRIDE, offset_10));
+      cached[y_local * localRowLen + x_local + 1] = to_normal(int_from_10(in, globalStart_10 - FRAME_STRIDE, offset_10), magic);
       if (localColOffset != -1) {
-        cached[y_local * localRowLen + localColOffset] = to_normal(int_from_10(in, (y_global-1) * FRAME_STRIDE + (5 * ((x_global+globalColOffset) / 4)), (offset_10+4+globalColOffset) % 4));
+        cached[y_local * localRowLen + localColOffset] = to_normal(int_from_10(in, (y_global-1) * FRAME_STRIDE + (5 * ((x_global+globalColOffset) / 4)), (offset_10+4+globalColOffset) % 4), magic);
       }
     } else if (y_local >= get_local_size(1) - 1) {
-      cached[(y_local + 2) * localRowLen + x_local + 1] = to_normal(int_from_10(in, globalStart_10 + FRAME_STRIDE, offset_10));
+      cached[(y_local + 2) * localRowLen + x_local + 1] = to_normal(int_from_10(in, globalStart_10 + FRAME_STRIDE, offset_10), magic);
       if (localColOffset != -1) {
-        cached[(y_local + 2) * localRowLen + localColOffset] = to_normal(int_from_10(in, (y_global+1) * FRAME_STRIDE + (5 * ((x_global+globalColOffset) / 4)), (offset_10+4+globalColOffset) % 4));
+        cached[(y_local + 2) * localRowLen + localColOffset] = to_normal(int_from_10(in, (y_global+1) * FRAME_STRIDE + (5 * ((x_global+globalColOffset) / 4)), (offset_10+4+globalColOffset) % 4), magic);
       }
     }
 
