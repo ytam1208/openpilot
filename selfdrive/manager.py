@@ -98,7 +98,8 @@ def build():
         prefix = b'progress: '
         if line.startswith(prefix):
           i = int(line[len(prefix):])
-          spinner.update("%d" % (BUILD_PROGRESS_MAX * (i / TOTAL_SCONS_NODES)))
+          val = BUILD_PROGRESS_MAX * (i / TOTAL_SCONS_NODES)
+          spinner.update("%d" % min(val, BUILD_PROGRESS_MAX))
         elif len(line):
           compile_output.append(line)
           print(line.decode('utf8', 'replace'))
@@ -230,6 +231,7 @@ car_started_processes = [
   'proclogd',
   'locationd',
   'clocksd',
+  'modeld',
 ]
 
 driver_view_processes = [
@@ -257,9 +259,6 @@ if ANDROID:
     'rtshield',
   ]
 
-# starting dmonitoringmodeld when modeld is initializing can sometimes \
-# result in a weird snpe state where dmon constantly uses more cpu than normal.
-car_started_processes += ['modeld']
 
 def register_managed_process(name, desc, car_started=False):
   global managed_processes, car_started_processes, persistent_processes
