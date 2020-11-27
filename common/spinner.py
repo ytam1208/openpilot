@@ -17,6 +17,7 @@ class Spinner():
     return self
 
   def update(self, spinner_text):
+    print("spinner update", spinner_text)
     if self.spinner_proc is not None:
       self.spinner_proc.stdin.write(spinner_text.encode('utf8') + b"\n")
       try:

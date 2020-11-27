@@ -9,29 +9,25 @@ import shutil
 import subprocess
 import datetime
 import textwrap
+import importlib
+import traceback
 from typing import Dict, List
-from selfdrive.swaglog import cloudlog, add_logentries_handler
-
+from multiprocessing import Process
 
 from common.basedir import BASEDIR
 from common.hardware import HARDWARE, ANDROID, PC
+from common.spinner import Spinner
+from common.text_window import TextWindow
+from selfdrive.swaglog import cloudlog, add_logentries_handler
+
 WEBCAM = os.getenv("WEBCAM") is not None
 sys.path.append(os.path.join(BASEDIR, "pyextra"))
 os.environ['BASEDIR'] = BASEDIR
 
-TOTAL_SCONS_NODES = 1040
-prebuilt = os.path.exists(os.path.join(BASEDIR, 'prebuilt'))
+BUILD_PROGRESS_MAX = 70
+TOTAL_SCONS_NODES = 1040  # TODO: make this more generic
+PREBUILT = os.path.exists(os.path.join(BASEDIR, 'prebuilt'))
 
-# Create folders needed for msgq
-try:
-  os.mkdir("/dev/shm")
-except FileExistsError:
-  pass
-except PermissionError:
-  print("WARNING: failed to make /dev/shm")
-
-if ANDROID:
-  os.chmod("/dev/shm", 0o777)
 
 def unblock_stdout():
   # get a non-blocking stdout
@@ -66,24 +62,19 @@ def unblock_stdout():
     exit_status = os.wait()[1] >> 8
     os._exit(exit_status)
 
-
 if __name__ == "__main__":
   unblock_stdout()
 
-from common.spinner import Spinner
-from common.text_window import TextWindow
-
-import importlib
-import traceback
-from multiprocessing import Process
-
-# Run scons
+# Build
 spinner = Spinner()
 spinner.update("0")
 if __name__ != "__main__":
   spinner.close()
 
-if not prebuilt:
+def build():
+  if PREBUILT:
+    return
+
   for retry in [True, False]:
     # run scons
     env = os.environ.copy()
@@ -107,7 +98,7 @@ if not prebuilt:
         prefix = b'progress: '
         if line.startswith(prefix):
           i = int(line[len(prefix):])
-          spinner.update("%d" % (70.0 * (i / TOTAL_SCONS_NODES)))
+          spinner.update("%d" % (BUILD_PROGRESS_MAX * (i / TOTAL_SCONS_NODES)))
         elif len(line):
           compile_output.append(line)
           print(line.decode('utf8', 'replace'))
@@ -147,6 +138,9 @@ if not prebuilt:
         exit(1)
     else:
       break
+
+if __name__ == "__main__":
+  build()
 
 import cereal
 import cereal.messaging as messaging
@@ -407,6 +401,14 @@ def send_managed_process_signal(name, sig):
 # ****************** run loop ******************
 
 def manager_init(should_register=True):
+  # Create folders needed for msgq
+  try:
+    os.mkdir("/dev/shm")
+  except FileExistsError:
+    pass
+  except PermissionError:
+    print("WARNING: failed to make /dev/shm")
+
   if should_register:
     reg_res = register()
     if reg_res:
@@ -436,6 +438,7 @@ def manager_init(should_register=True):
 
   # ensure shared libraries are readable by apks
   if ANDROID:
+    os.chmod("/dev/shm", 0o777)
     os.chmod(BASEDIR, 0o755)
     os.chmod(os.path.join(BASEDIR, "cereal"), 0o755)
     os.chmod(os.path.join(BASEDIR, "cereal", "libmessaging_shared.so"), 0o755)
@@ -521,13 +524,14 @@ def manager_prepare(spinner=None):
   os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
   # Spinner has to start from 70 here
-  total = 100.0 if prebuilt else 30.0
+  total = 100.0 if PREBUILT else 30.0
 
   for i, p in enumerate(managed_processes):
-    if spinner is not None:
-      spinner.update("%d" % ((100.0 - total) + total * (i + 1) / len(managed_processes),))
+    val = (100.0 - total) + total * (i + 1) / len(managed_processes)
+    spinner.update("%d" % val)
     prepare_managed_process(p)
 
+# TODO: move this to the HW abstraction layer
 def uninstall():
   cloudlog.warning("uninstalling")
   with open('/cache/recovery/command', 'w') as f:
@@ -567,7 +571,7 @@ def main():
     if params.get(k) is None:
       params.put(k, v)
 
-  # is this chffrplus?
+  # is this dashcam?
   if os.getenv("PASSIVE") is not None:
     params.put("Passive", str(int(os.getenv("PASSIVE"))))
 
