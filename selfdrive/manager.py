@@ -435,8 +435,14 @@ def manager_init(should_register=True):
   except OSError:
     pass
 
-  # ensure shared libraries are readable by apks
   if ANDROID:
+    # the flippening!
+    os.system('LD_LIBRARY_PATH="" content insert --uri content://settings/system --bind name:s:user_rotation --bind value:i:1')
+
+    # disable bluetooth
+    os.system('service call bluetooth_manager 8')
+
+    # ensure shared libraries are readable by apks
     os.chmod("/dev/shm", 0o777)
     os.chmod(BASEDIR, 0o755)
     os.chmod(os.path.join(BASEDIR, "cereal"), 0o755)
@@ -539,12 +545,6 @@ def uninstall():
   HARDWARE.reboot(reason="recovery")
 
 def main():
-  if ANDROID:
-    # the flippening!
-    os.system('LD_LIBRARY_PATH="" content insert --uri content://settings/system --bind name:s:user_rotation --bind value:i:1')
-
-    # disable bluetooth
-    os.system('service call bluetooth_manager 8')
 
   params = Params()
   params.manager_start()
