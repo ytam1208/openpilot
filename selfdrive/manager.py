@@ -72,9 +72,6 @@ if __name__ != "__main__":
   spinner.close()
 
 def build():
-  if PREBUILT:
-    return
-
   for retry in [True, False]:
     # run scons
     env = os.environ.copy()
@@ -140,10 +137,9 @@ def build():
     else:
       break
 
-if __name__ == "__main__":
+if __name__ == "__main__" and not PREBUILT:
   build()
 
-import cereal
 import cereal.messaging as messaging
 
 from common.params import Params
@@ -154,7 +150,6 @@ from selfdrive.loggerd.config import ROOT
 from selfdrive.launcher import launcher
 from common.apk import update_apks, pm_apply_packages, start_offroad
 
-ThermalStatus = cereal.log.ThermalData.ThermalStatus
 
 # comment out anything you don't want to run
 managed_processes = {
@@ -328,12 +323,12 @@ def prepare_managed_process(p):
     # build this process
     cloudlog.info("building %s" % (proc,))
     try:
-      subprocess.check_call(["make", "-j4"], cwd=os.path.join(BASEDIR, proc[0]))
+      subprocess.check_call(["scons", "-u", "-j4", "."], cwd=os.path.join(BASEDIR, proc[0]))
     except subprocess.CalledProcessError:
-      # make clean if the build failed
-      cloudlog.warning("building %s failed, make clean" % (proc, ))
-      subprocess.check_call(["make", "clean"], cwd=os.path.join(BASEDIR, proc[0]))
-      subprocess.check_call(["make", "-j4"], cwd=os.path.join(BASEDIR, proc[0]))
+      # clean and build if failed
+      cloudlog.warning("building %s failed, cleaning" % (proc, ))
+      subprocess.check_call(["scons", "-u", "-c", "."], cwd=os.path.join(BASEDIR, proc[0]))
+      subprocess.check_call(["scons", "-u", "-j4", "."], cwd=os.path.join(BASEDIR, proc[0]))
 
 
 def join_process(process, timeout):
