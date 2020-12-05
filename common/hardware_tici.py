@@ -17,6 +17,10 @@ def run_at_command(cmd, timeout=0.1):
 
 
 class Tici(HardwareBase):
+  def get_os_version(self):
+    with open("/VERSION") as f:
+      return f.read().strip()
+
   def get_sound_card_online(self):
     return True
 
